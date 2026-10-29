@@ -1,0 +1,107 @@
+==============================================================================
+ext4edit -- list and edit files in an ext2/3/4 image
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This licence applies to the files AUTHORED for this program: ext4edit.c,
+build.sh, this LICENSE, README.md and LWEXT4_UPSTREAM.md, and to the files
+this program's patches ADD to the bundled lwext4 library (named in the
+"Bundled third-party components" section at the end of this file).  The
+bundled lwext4 library (in lwext4/) is third-party code under its OWN BSD
+licence, set out in that section and retained in every lwext4 source header,
+and lwext4/unicode/ carries e2fsprogs' Unicode folding under the GNU GPL, as
+its own headers state.
+==============================================================================
+
+Copyright (c) 2026 B. C. Services
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 2 of the License, or (at your option)
+any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details.
+
+------------------------------------------------------------------------------
+GNU General Public License v2.0 or later
+------------------------------------------------------------------------------
+
+The full text of the GNU General Public License version 2.0 is in the
+sibling file `GPL-2.0.txt` within this same directory.  That text was
+fetched verbatim from the canonical source published by the Free
+Software Foundation:
+
+    https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+The "or any later version" clause means: you may instead use the terms of
+any later version of the GPL published by the Free Software Foundation.
+
+Until version 1.2.0 this program was offered under a dual licence, MIT OR
+GPL-2.0-or-later.  From version 1.3.0 it is GPL-2.0-or-later only, because
+the lwext4 patches it carries add files that are GPL-2.0-or-later and
+e2fsprogs code that is GPL, which the MIT option could not cover.
+
+------------------------------------------------------------------------------
+Bundled third-party components
+------------------------------------------------------------------------------
+
+lwext4 (BSD-licensed)
+
+This program bundles the lwext4 ext2/3/4 filesystem library in the `lwext4/`
+subdirectory (upstream gkostka/lwext4, tag v1.0.0, commit 890484c), WITH
+numbered fixes and additions, each marked "ext4edit patch N" where it sits
+and explained with its diff in LWEXT4_UPSTREAM.md.  lwext4's own files are
+NOT covered by this program's licence; they carry lwext4's BSD licence,
+reproduced here and retained in every lwext4 source file:
+
+    Copyright (c) 2013 Grzegorz Kostka (kostka.grzegorz@gmail.com)
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - The name of the author may not be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+    OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+    IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+    NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+    THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Files this program's patches add to lwext4 (GPL-2.0-or-later, ours)
+
+    lwext4/include/ext4_inline.h, lwext4/src/ext4_inline.c
+        the ext4 inline_data feature (patch 7)
+    lwext4/include/ext4_casefold.h, lwext4/src/ext4_casefold.c
+        the ext4 casefold feature (patch 8)
+    lwext4/unicode/config.h, ext2_fs.h, ext2fs.h, ext2fsP.h
+        stand-in headers that let e2fsprogs' folding code build without
+        e2fsprogs' own build (patch 8)
+
+These are covered by this program's licence above, as their headers state.
+
+e2fsprogs' Unicode folding (GNU GPL)
+
+    lwext4/unicode/nls_utf8.c, utf8n.h, utf8data.h
+
+Mirrored verbatim from e2fsprogs 1.47.4 (lib/ext2fs), bar one exported
+wrapper marked in nls_utf8.c; (c) SGI and Collabora Ltd., under the GNU
+General Public License as their headers state.
+
+------------------------------------------------------------------------------
+End of LICENSE
+------------------------------------------------------------------------------

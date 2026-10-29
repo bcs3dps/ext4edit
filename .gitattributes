@@ -1,0 +1,4 @@
+# Store and check out every file byte-for-byte, on every platform: the C
+# sources, the build script, the documents and the vendored lwext4 tree are
+# kept exactly as they are and git never rewrites line endings here.
+* -text

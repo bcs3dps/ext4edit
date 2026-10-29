@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ext4edit -- list and edit files in an ext2/3/4 image</title>
+<style>
+
+body { font-family: Arial, sans-serif; font-size: 11pt; margin: 1in;
+       line-height: 1.4; max-width: 7.5in; color: #1a1a1a; }
+h1 { font-size: 18pt; color: #1a1a1a; border-bottom: 2px solid #333;
+     padding-bottom: 4pt; margin-top: 24pt; }
+h1:first-child { margin-top: 0; }
+h2 { font-size: 14pt; color: #1a1a1a; margin-top: 22pt;
+     border-bottom: 1px solid #999; padding-bottom: 2pt; }
+h3 { font-size: 12pt; color: #333; margin-top: 16pt; }
+h4 { font-size: 11pt; color: #333; margin-top: 12pt; margin-bottom: 4pt; }
+p  { margin: 6pt 0; }
+pre { background-color: #f0f0f0; border: 1px solid #ccc; padding: 8pt;
+      font-family: Consolas, monospace; font-size: 9.5pt; white-space: pre;
+      overflow-x: auto; line-height: 1.25; }
+code { font-family: Consolas, monospace; font-size: 10pt;
+       background-color: #f0f0f0; padding: 1pt 3pt; border-radius: 2px; }
+pre code { background-color: transparent; padding: 0; font-size: 9.5pt; }
+p.note, div.note { background-color: #fff3cd; border-left: 4px solid #ffc107;
+                   padding: 6pt 10pt; margin: 8pt 0; }
+p.important, div.important { background-color: #f8d7da;
+                             border-left: 4px solid #dc3545;
+                             padding: 6pt 10pt; margin: 8pt 0; }
+p.summary, div.summary { background-color: #d1ecf1;
+                         border-left: 4px solid #0c5460;
+                         padding: 6pt 10pt; margin: 8pt 0; }
+ul, ol { margin-top: 4pt; margin-bottom: 8pt; }
+li { margin-bottom: 4pt; }
+li > ul, li > ol { margin-top: 4pt; margin-bottom: 4pt; }
+/* Indented outline body. Use in markdown as:
+   <div class="indent" markdown="1"> ...markdown incl. code fences... </div>
+   (the md_in_html extension processes markdown inside the div). */
+div.indent { margin: 4pt 0 8pt 2em; }
+div.indent > :first-child { margin-top: 0; }
+div.indent > :last-child  { margin-bottom: 0; }
+table { border-collapse: collapse; margin: 10pt 0; width: 100%; }
+td, th { border: 1px solid #999; padding: 4pt 8pt; font-size: 10pt;
+         vertical-align: top; }
+th { background-color: #e0e0e0; text-align: left; }
+tr:nth-child(even) td { background-color: #f7f7f7; }
+a  { color: #1e3a8a; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: none; border-top: 1px solid #999; margin: 16pt 0; }
+strong { color: #1a1a1a; }
+img { max-width: 100%; height: auto; }
+
+.doc-meta { color: #555; font-size: 10pt; margin-top: -6pt;
+            margin-bottom: 12pt; }
+.toc { background-color: #f7f7f7; border: 1px solid #ccc;
+       padding: 10pt 14pt; margin: 16pt 0 24pt; font-size: 10.5pt; }
+.toc h2 { font-size: 12pt; margin-top: 0; margin-bottom: 6pt; border: none;
+          color: #333; }
+.toc ul { margin: 0; padding-left: 20pt; }
+.toc li { margin-bottom: 2pt; }
+.toc a { color: #1e3a8a; }
+
+@media print {
+  body { margin: 0.75in; }
+  pre, table, div.note, div.important { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+
+</style>
+</head>
+<body>
+<h1>ext4edit &ndash; list and edit files in an ext2/3/4 image</h1>
+<div class="toc">
+<h2>Contents</h2>
+<ul>
+  <li><a href="#usage">Usage</a></li>
+  <li><a href="#command-reference">Command reference</a></li>
+  <li><a href="#images-names-and-paths">Images, names and paths</a></li>
+  <li><a href="#extract-and-import-ndash-crossing-the-windows-boundary">Extract and import &ndash; crossing the Windows boundary</a></li>
+  <li><a href="#note-on-paths-in-a-posix-style-shell">Note on paths in a POSIX-style shell</a></li>
+  <li><a href="#examples">Examples</a></li>
+  <li><a href="#building">Building</a></li>
+  <li><a href="#bundled-lwext4">Bundled lwext4</a></li>
+  <li><a href="#licence">Licence</a></li>
+  <li><a href="#see-also">See also</a></li>
+</ul>
+</div>
+<p><code>ext4edit</code> is a small Windows command-line tool that lists and edits files in
+an <strong>ext2/3/4 image FILE</strong> &ndash; for example a partition image carved out of a raw
+disk dump &ndash; with no Linux host and no untrusted Windows ext4 driver. It reads
+(<code>ls</code>, <code>cat</code>, <code>stat</code>, <code>readlink</code>), edits (<code>rm</code>, <code>rmdir</code>, <code>rm-tree</code>, <code>mkdir</code>,
+<code>write</code>, <code>ln</code>, <code>symlink</code>, <code>mv</code>, <code>chmod</code>, <code>chown</code>), and copies whole trees between
+the image and the Windows filesystem &ndash; OUT with <code>dump</code> / <code>rdump</code>, IN with
+<code>rwrite</code> &ndash; all in userspace.</p>
+<p>It is built on the bundled <strong>lwext4</strong> library (BSD, in <code>lwext4/</code>, carrying
+fifty-one numbered fixes and additions &ndash; see &ldquo;Bundled lwext4&rdquo; below) wrapped
+in one C file, and builds to a single static <code>.exe</code> with the WinLibs MinGW-w64
+gcc. Because it operates on an image FILE (not a <code>\\.\</code> device), it does <strong>not</strong>
+need Administrator.</p>
+<p>Every editing command is a <strong>DRY RUN unless <code>--write</code></strong> is given, so you see
+exactly what would change before anything is touched. <strong>Always keep a backup of
+the image before writing, and run <code>e2fsck</code> on the result afterward</strong> &ndash; this
+writes a real filesystem.</p>
+<h2 id="usage">Usage</h2>
+<pre><code>ext4edit &lt;image&gt; &lt;command&gt; [args] [options] [--write]
+ext4edit --help
+ext4edit --version
+</code></pre>
+<p><code>&lt;image&gt;</code> is an ext2/3/4 image FILE. Paths inside the image are absolute (start
+with <code>/</code>). Options and flags may appear in any position after the command. With
+no arguments, or an unknown command, <code>ext4edit</code> prints its usage to stderr and
+exits non-zero, so a bare run is never silent.</p>
+<h2 id="command-reference">Command reference</h2>
+<h3>Global</h3>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;image&gt;</code></td>
+<td>the ext2/3/4 image file; a long path or a <code>\\?\</code> path is accepted as it is</td>
+</tr>
+<tr>
+<td><code>--write</code></td>
+<td>apply an editing command; without it the command is a DRY RUN that prints what it would do and changes nothing (the image is mounted read-only)</td>
+</tr>
+<tr>
+<td><code>--help</code></td>
+<td>print the usage block to stderr and exit 0</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>print <code>ext4edit &lt;version&gt;</code> to stdout and exit 0</td>
+</tr>
+</tbody>
+</table>
+<h3>Read-only commands (<code>dump</code> / <code>rdump</code> also create host files)</h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ls &lt;dir&gt;</code></td>
+<td>list a directory: one line per entry with its type and name (<code>.</code> and <code>..</code> shown)</td>
+</tr>
+<tr>
+<td><code>cat &lt;path&gt; [--text]</code></td>
+<td>write a file&rsquo;s bytes to stdout, binary-exact; <code>--text</code> translates LF to CRLF for a Windows editor</td>
+</tr>
+<tr>
+<td><code>stat &lt;path&gt;</code></td>
+<td>show inode facts: inode number, type, mode, link count, uid/gid, size, blocks, times</td>
+</tr>
+<tr>
+<td><code>readlink &lt;path&gt;</code></td>
+<td>print a symlink&rsquo;s stored target without following it</td>
+</tr>
+<tr>
+<td><code>dump &lt;imgfile&gt; &lt;hostfile&gt; [-p] [-t]</code></td>
+<td>extract ONE file to the host. <code>-p</code>: write a <code>&lt;hostfile&gt;.ext4meta</code> metadata sidecar; <code>-t</code> (or <code>--time</code>): set the host file&rsquo;s times from the inode. A symlink is skipped (recorded under <code>-p</code>); a directory is refused &ndash; use <code>rdump</code>.</td>
+</tr>
+<tr>
+<td><code>rdump &lt;imgdir&gt; &lt;hostdir&gt; [--force] [-p] [-t]</code></td>
+<td>recursively extract a TREE to the host. Refuses a non-empty <code>&lt;hostdir&gt;</code> unless <code>--force</code>. <code>-p</code>: write one <code>&lt;hostdir&gt;/_ext4meta.txt</code> manifest; <code>-t</code> (or <code>--time</code>): set host file times. Symlinks, device nodes, fifos and sockets are skipped (recorded under <code>-p</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3>Editing commands (DRY RUN unless <code>--write</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rm &lt;path&gt;</code></td>
+<td>remove one file or link; a path that is not there is reported as <code>absent</code> and is a success</td>
+</tr>
+<tr>
+<td><code>rmdir &lt;dir&gt;</code></td>
+<td>remove an EMPTY directory (refuses a non-empty one; use <code>rm-tree</code>)</td>
+</tr>
+<tr>
+<td><code>rm-tree &lt;dir&gt;</code></td>
+<td>remove a directory and everything under it</td>
+</tr>
+<tr>
+<td><code>mkdir &lt;dir&gt;</code></td>
+<td>create ONE directory level (the parent must already exist): <code>0755</code>, <code>uid=gid=0</code>, dated now</td>
+</tr>
+<tr>
+<td><code>write &lt;path&gt; &lt;hostfile&gt;</code></td>
+<td>copy a host (Windows) file INTO the image at <code>&lt;path&gt;</code>. A new file gets <code>0644</code>, <code>uid=gid=0</code> and is dated now; a file that is overwritten keeps its mode and owner.</td>
+</tr>
+<tr>
+<td><code>rwrite &lt;hostpath&gt; &lt;imgpath&gt;</code></td>
+<td>recursively IMPORT a host file / tree INTO the image. New files get <code>0644</code>, directories <code>0755</code>, <code>uid=gid=0</code>, all dated now; host symlinks are followed. Note the order: host source first, image destination second.</td>
+</tr>
+<tr>
+<td><code>symlink &lt;target&gt; &lt;link&gt;</code></td>
+<td>create a symbolic link holding <code>&lt;target&gt;</code> as text (never validated): <code>0777</code> (as Linux keeps every symlink), <code>uid=gid=0</code>, dated now</td>
+</tr>
+<tr>
+<td><code>ln &lt;target&gt; &lt;link&gt;</code></td>
+<td>create a hard link: a second name for an existing file&rsquo;s inode</td>
+</tr>
+<tr>
+<td><code>mv &lt;src&gt; &lt;dst&gt;</code></td>
+<td>rename / move an entry (a directory is never moved into its own subtree)</td>
+</tr>
+<tr>
+<td><code>chmod &lt;octal&gt; &lt;path&gt;</code></td>
+<td>change permission bits (e.g. <code>0644</code>); the type bits are kept</td>
+</tr>
+<tr>
+<td><code>chown &lt;uid&gt; &lt;gid&gt; &lt;path&gt;</code></td>
+<td>change owner / group (numeric ids)</td>
+</tr>
+</tbody>
+</table>
+<h3>Options of the four creating commands (<code>write</code>, <code>rwrite</code>, <code>mkdir</code>, <code>symlink</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-p</code></td>
+<td>(<code>write</code>, <code>rwrite</code>) restore from the metadata <code>dump -p</code> / <code>rdump -p</code> recorded: each entry gets its recorded mode, owner, group, modify and access times, and <code>rwrite</code> creates the recorded symbolic links again. <code>write -p</code> reads <code>&lt;hostfile&gt;.ext4meta</code>; <code>rwrite -p</code> reads <code>&lt;hostpath&gt;\_ext4meta.txt</code> (which is then not imported itself). A missing metadata file is an error.</td>
+</tr>
+<tr>
+<td><code>--mode &lt;octal&gt;</code></td>
+<td>permission bits for imported FILES (an imported tree&rsquo;s directories stay <code>0755</code>), or for the directory <code>mkdir</code> makes; a symlink&rsquo;s mode is always <code>0777</code></td>
+</tr>
+<tr>
+<td><code>--owner &lt;uid&gt;:&lt;gid&gt;</code></td>
+<td>numeric owner and group for everything created</td>
+</tr>
+<tr>
+<td><code>--mtime &lt;seconds&gt;</code>, <code>--mtime now</code>, <code>--mtime host</code></td>
+<td>modify time for everything created: a UTC epoch number; <code>now</code>, this run&rsquo;s moment (the default, so naming it changes nothing); or <code>host</code>, which keeps each host file&rsquo;s own modify time (<code>write</code> and <code>rwrite</code> only, what <code>cp -p</code> does; <code>mkdir</code> and <code>symlink</code> have no host file and refuse it)</td>
+</tr>
+</tbody>
+</table>
+<p>An option given on the command line outranks the recorded metadata, which
+outranks the defaults. &ldquo;Now&rdquo; is read from the clock ONCE per run, so every
+entry of one <code>rwrite</code> carries the same timestamp.</p>
+<h3>Exit code</h3>
+<p><code>0</code> on success and <code>1</code> on any failure &ndash; including an <code>rm</code> whose path was found
+but could not be removed, an <code>rdump</code> / <code>rwrite</code> in which any entry was skipped or
+failed, any command whose directory could not be read in full, a bad option, or
+an image that could not be mounted.</p>
+<h2 id="images-names-and-paths">Images, names and paths</h2>
+<ul>
+<li><strong>A read-only command never needs write access to the image.</strong> <code>ls</code>, <code>cat</code>,
+  <code>stat</code>, <code>readlink</code>, <code>dump</code>, <code>rdump</code> and every dry run open the image file
+  read-only, so a write-protected image, or one on read-only media, can be
+  read. Nothing is written to it.</li>
+<li><strong>Two filesystems are refused for writing</strong>, and still read: one whose
+  journal is on a separate device (an external journal, which this tool cannot
+  reach), and a <code>fast_commit</code> filesystem that was not cleanly unmounted (its
+  journal may hold fast commits only the Linux driver can replay; mount it on
+  Linux once).</li>
+<li><strong>An image path is held to one spelling.</strong> It must start with <code>/</code>; a
+  trailing <code>/</code> is dropped (<code>ls /etc/</code> lists <code>/etc</code>); an empty, <code>.</code> or <code>..</code>
+  component is refused. lwext4 would read <code>/d/x/../f</code> as <code>/d/f</code>, create
+  nonsense entries from a <code>..</code> handed to <code>symlink</code>, and leave a directory with
+  two parents after <code>mv /d/ /e</code>, so none of them reaches it. The same rule
+  binds the <code>path:</code> lines of a manifest read with <code>-p</code>.</li>
+<li><strong>A directory that cannot be read in full fails the command.</strong> A listing,
+  an extract, an emptiness test or an existence check that lwext4 could not
+  finish &ndash; a damaged inode or block &ndash; is reported as such, never as a
+  complete (or empty) directory.</li>
+<li><strong>Times are kept as a kernel keeps them.</strong> Anything created is dated now
+  (modify and access time) unless <code>--mtime</code> says otherwise; every change &ndash;
+  a create, an overwrite, <code>chmod</code>, <code>chown</code>, <code>mv</code>, <code>ln</code> &ndash; sets the inode&rsquo;s
+  change time to now, which no option moves; and a directory that gains,
+  loses or renames an entry gets now as its modify and change times. lwext4
+  alone would date everything 1970 and leave directories untouched. The one
+  exception is a <code>-p</code> restore, whose directories keep the recorded times even
+  as the recorded symlinks are created in them.</li>
+<li><strong>Names are Unicode.</strong> The command line is read as Unicode and every name is
+  carried as UTF-8, which is what a Linux filesystem stores. A host file with
+  any Windows name is imported under that same name, and an image entry is
+  extracted under its own name.</li>
+<li><strong>Long paths work</strong>, for the image file as for anything else: a path may be
+  up to 4095 bytes of UTF-8, which is Linux&rsquo;s own limit, so no path an image
+  can hold is too long. A host path given in the <code>\\?\</code> form is accepted as it
+  is.</li>
+<li><strong><code>*</code> and <code>?</code> in an argument are taken literally.</strong> They are not expanded
+  against the host&rsquo;s files.</li>
+<li><strong>A name Windows cannot hold is never created.</strong> <code>dump</code> / <code>rdump</code> refuse a
+  destination whose last component is a reserved device name (<code>CON</code>, <code>NUL</code>,
+  <code>COM1</code> &hellip;), holds an illegal character, or ends in a dot or a space, and
+  <code>rdump</code> skips an image entry with such a name &ndash; recording it in the <code>-p</code>
+  manifest like every other skipped entry.</li>
+<li><strong>A write that runs out of room leaves nothing behind.</strong> <code>write</code> / <code>rwrite</code>
+  report &ldquo;the filesystem in the image is full&rdquo; and remove the partial file, so
+  an <code>rwrite</code> carries on with the files that do fit.</li>
+<li><strong>A damaged image does not hang the tool.</strong> An internal check of the
+  bundled library that fails is reported once at the end of the run, with a
+  hint to check the image with <code>e2fsck</code>, and the command fails.</li>
+</ul>
+<h2 id="extract-and-import-ndash-crossing-the-windows-boundary">Extract and import &ndash; crossing the Windows boundary</h2>
+<p><code>dump</code> / <code>rdump</code> copy OUT of the image; <code>rwrite</code> copies IN. Because NTFS cannot
+hold a Unix file&rsquo;s mode, owner or symlink nature, the two directions handle that
+metadata explicitly:</p>
+<ul>
+<li><strong>Extract (<code>dump</code> / <code>rdump</code>).</strong> File bytes are written out verbatim. With
+  <strong><code>-p</code></strong> the Unix metadata NTFS cannot keep is written as plain text beside the
+  data &ndash; <code>dump -p</code> writes a per-file sidecar <code>&lt;hostfile&gt;.ext4meta</code>; <code>rdump -p</code>
+  writes one manifest <code>&lt;hostdir&gt;/_ext4meta.txt</code> with a block per entry. With
+  <strong><code>-t</code></strong> the host FILE&rsquo;s access / modify times are set from the inode (a host
+  directory&rsquo;s own mtime is not set &ndash; the C runtime cannot stamp a directory on
+  Windows &ndash; but <code>-p</code> still records it). A <strong>symlink</strong> cannot be created on NTFS,
+  so it is skipped with a warning and, under <code>-p</code>, recorded as <code>type: symlink</code>
+  with its <code>target:</code>.</li>
+<li><strong>Import (<code>rwrite</code>).</strong> Windows files carry no Unix mode / owner, so imported
+  files get <strong><code>0644</code></strong> (or <code>--mode &lt;octal&gt;</code>), directories get <strong><code>0755</code></strong> (so
+  they stay traversable &ndash; <code>--mode</code> applies to files only), everything gets
+  <strong><code>uid=gid=0</code></strong> (or <code>--owner</code>), and every entry is <strong>dated now</strong> (or
+  <code>--mtime &lt;seconds&gt;</code>; <code>--mtime host</code> copies each host file&rsquo;s own modify time
+  instead). A host symlink is followed to its target, so the target&rsquo;s bytes
+  are imported.</li>
+<li><strong>Import with <code>-p</code> &ndash; the round trip.</strong> <code>rdump &lt;dir&gt; &lt;host&gt; -p</code> followed by
+  <code>rwrite &lt;host&gt; &lt;dir&gt; -p --write</code> puts the tree back as it was: every file and
+  directory gets the mode, owner, group and times the manifest recorded, and
+  the symbolic links are created again from their recorded targets. What the
+  manifest names but cannot rebuild &ndash; a device node, a fifo, a socket, an
+  entry whose name Windows could not hold &ndash; is listed as not restored. A
+  restored symbolic link has its target but not its original owner or time.</li>
+</ul>
+<p>The <code>-p</code> block is <code>key: value</code> lines: <code>path</code>, <code>type</code>, <code>mode</code> (octal permission
+bits), <code>uid</code>, <code>gid</code>, <code>mtime</code> / <code>atime</code> / <code>ctime</code> (epoch seconds) and <code>size</code>; a
+symlink block is <code>path</code>, <code>type: symlink</code> and <code>target</code>. In an <code>rdump</code> manifest the
+<code>path</code> is relative to <code>&lt;hostdir&gt;</code> and blocks are separated by a blank line.</p>
+<h2 id="note-on-paths-in-a-posix-style-shell">Note on paths in a POSIX-style shell</h2>
+<p>A POSIX-style shell on Windows rewrites a leading-slash argument such as
+<code>/etc/network</code> into a Windows path before the program sees it. Run ext4edit
+from <strong>cmd.exe or PowerShell</strong>, where an argument reaches the program as
+typed.</p>
+<h2 id="examples">Examples</h2>
+<p>All from cmd.exe or PowerShell. Every editing example below is a dry run
+without <code>--write</code>; the ones shown with it change the image.</p>
+<p>Reading:</p>
+<pre><code>ext4edit image.img ls /                              # list the root
+ext4edit image.img ls /etc                           # list a directory
+ext4edit image.img cat /etc/fstab                    # a file's bytes, as they are
+ext4edit image.img cat /etc/fstab --text &gt; fstab.txt # as CRLF text, into a host file
+ext4edit image.img stat /etc/hostname                # inode facts for one entry
+ext4edit image.img readlink /etc/localtime           # a symlink's target
+</code></pre>
+<p>Extracting to the host:</p>
+<pre><code>ext4edit image.img dump /etc/hostname out.txt              # one file
+ext4edit image.img dump /etc/hostname out.txt -p -t        # plus its metadata sidecar and times
+ext4edit image.img rdump /etc C:\tmp\etc -p                # a tree, with a manifest
+ext4edit image.img rdump /etc C:\tmp\etc -p -t --force     # into a host dir that is not empty
+ext4edit image.img rdump / C:\tmp\whole -p                 # the whole image
+</code></pre>
+<p>Importing from the host:</p>
+<pre><code>ext4edit image.img write /etc/hostname C:\tmp\hostname.txt --write          # one file (0644, root, now)
+ext4edit image.img write /etc/hostname C:\tmp\hostname.txt --mode 0600 --owner 1000:1000 --write
+ext4edit image.img write /etc/hostname out.txt -p --write                   # restored from out.txt.ext4meta
+ext4edit image.img rwrite C:\tmp\etc /etc --write                           # a tree (files 0644, dirs 0755)
+ext4edit image.img rwrite C:\tmp\etc /etc -p --write                        # the round trip: modes, owners, times, symlinks restored
+ext4edit image.img rwrite C:\tmp\etc /etc --mtime host --write              # keep each host file's own modify time
+ext4edit image.img rwrite C:\tmp\etc /etc --mtime 1700000000 --write        # one fixed modify time for everything
+</code></pre>
+<p>Editing:</p>
+<pre><code>ext4edit image.img rm /tmp/stale                     # DRY RUN: shows what would go
+ext4edit image.img rm /tmp/stale --write             # remove one file
+ext4edit image.img rmdir /var/empty --write          # remove an EMPTY directory
+ext4edit image.img rm-tree /var/cache --write        # remove a directory and its contents
+ext4edit image.img mkdir /opt/app --write            # a new directory (0755, root, now)
+ext4edit image.img mkdir /opt/app --mode 0700 --owner 1000:1000 --write
+ext4edit image.img symlink /usr/bin/busybox /bin/sh --write      # a symbolic link
+ext4edit image.img ln /etc/hostname /etc/hostname.bak --write    # a hard link
+ext4edit image.img mv /etc/hostname /etc/hostname.old --write    # rename / move
+ext4edit image.img chmod 0644 /etc/hostname --write
+ext4edit image.img chown 0 0 /etc/hostname --write
+</code></pre>
+<p>Afterwards, on the Linux side (or in WSL):</p>
+<pre><code>e2fsck -fn image.img       # check without changing
+e2fsck -fy image.img       # and repair
+</code></pre>
+<h2 id="building">Building</h2>
+<h3>Tools required</h3>
+<p>One tool builds the program: the compiler. Nothing else is needed &ndash; no shell
+beyond <code>cmd.exe</code>, no CMake, no Visual Studio, no MSYS2 packages, no library
+installs (lwext4 is bundled as source).</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it is for</th>
+<th>How to install it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>WinLibs MinGW-w64 GCC</strong> (64-bit, UCRT runtime, POSIX threads)</td>
+<td>the C compiler and linker; the only compiler the build is held to</td>
+<td><code>winget install BrechtSanders.WinLibs.POSIX.UCRT</code>, then put its <code>mingw64\bin</code> folder on <code>PATH</code> &ndash; winget places it under <code>%LOCALAPPDATA%\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin</code>. Or download the &ldquo;UCRT runtime, POSIX threads&rdquo; 64-bit zip from <code>https://winlibs.com</code>, extract it anywhere, and put its <code>mingw64\bin</code> on <code>PATH</code>. Check with <code>gcc --version</code>: it names <code>MinGW-W64 x86_64-ucrt-posix-seh</code>; the build here uses release 15.2.0.</td>
+</tr>
+</tbody>
+</table>
+<p>The MSYS2 toolchains, Cygwin&rsquo;s gcc and Visual C++ are not used: the source is
+built as one static native executable with the WinLibs compiler, so no runtime
+DLL has to travel with it.</p>
+<h3>The build</h3>
+<p>From <code>cmd.exe</code> or PowerShell, in this folder, with <code>gcc</code> on <code>PATH</code>:</p>
+<pre><code>.\build.bat
+</code></pre>
+<p>(The <code>.\</code> is what PowerShell requires for a script in the current folder, and
+what <code>cmd.exe</code> requires on a machine set not to search the current folder for
+programs; it is never wrong.) <code>build.bat</code> does the following, and every source
+file is named in it, one line each &ndash; there is no wildcard &ndash; so a file that is
+not listed is not part of the program and a listed file that goes missing
+stops the build with <code>BUILD FAILED</code>:</p>
+<ol>
+<li>Changes to its own folder, so it runs from anywhere, and makes <code>build\obj\</code>.</li>
+<li>Compiles the bundled lwext4 &ndash; the 23 sources listed in the script under
+   <code>lwext4/src/</code>, including the two files our patches add (<code>ext4_inline.c</code>,
+   <code>ext4_casefold.c</code>) &ndash; and e2fsprogs&rsquo; Unicode folding (<code>lwext4/unicode/nls_utf8.c</code>),
+   each with <code>gcc -c -O2 -std=gnu99</code>, the lwext4 settings
+   <code>-DCONFIG_USE_DEFAULT_CFG=1 -DCONFIG_DEBUG_PRINTF=0 -DCONFIG_BLOCK_DEV_CACHE_SIZE=4096</code>
+   (the built-in configuration, so no CMake; lwext4&rsquo;s debug chatter off; a
+   4096-block cache in place of the default 8), and the include path
+   <code>-Ilwext4/include -Ilwext4/unicode</code>. These are compiled as the library is,
+   with no <code>-Wall</code>: they are not held to this program&rsquo;s warning bar.
+   lwext4&rsquo;s own <code>blockdev/ext4_filedev.c</code> is deliberately not built.</li>
+<li>Compiles <code>ext4edit.c</code> with <code>-Wall -Wextra</code> added. It builds with no warning.</li>
+<li>Links everything into one static <code>ext4edit.exe</code> (<code>gcc -static</code>) with a
+   64 MiB stack (<code>-Wl,--stack,67108864</code>), headroom only: the tree walks of
+   <code>rdump</code> and <code>rwrite</code> are loops over heap-held frames, one per directory
+   level, so a tree&rsquo;s depth costs the stack nothing. The objects go to
+   <code>build/obj/</code>, the executable to this folder.</li>
+</ol>
+<p>The result imports nothing but the Windows system DLLs and the Universal C
+Runtime (part of Windows 10 and later; installable on older versions), so no
+compiler DLL travels with it. Verify a build by the executable&rsquo;s timestamp,
+never by the script&rsquo;s last line. There is no <code>clean</code> target: delete <code>build/</code> and
+<code>ext4edit.exe</code> by hand.</p>
+<h3>The documents</h3>
+<p><code>README.html</code> and <code>LWEXT4_UPSTREAM.html</code> are rendered from the Markdown files
+beside them by a Python 3 script kept with the development tooling (it needs
+the <code>markdown</code> package: <code>pip install --user markdown</code>). The HTML is shipped so
+that nothing is needed to read the documents; edit the <code>.md</code> and re-render.
+The build does not need Python, or anything else: the compiler alone.</p>
+<h2 id="bundled-lwext4">Bundled lwext4</h2>
+<p><code>lwext4/</code> is upstream <code>gkostka/lwext4</code> v1.0.0 (commit <code>890484c</code>), BSD-licensed,
+(c) Grzegorz Kostka: its <code>src/</code>, <code>include/</code> and <code>blockdev/</code> folders, plus a
+<code>unicode/</code> folder of ours. Its BSD terms are retained in every file header and
+in <code>LICENSE</code>. <strong>It is not as published: it carries fifty-two numbered fixes
+and additions</strong>, each marked where it sits as <code>ext4edit patch N</code> (so
+<code>grep -rn "ext4edit patch" lwext4</code> finds every site). <strong>Every patch is
+documented in <a href="LWEXT4_UPSTREAM.md"><code>LWEXT4_UPSTREAM.md</code></a></strong> (also rendered as
+<code>LWEXT4_UPSTREAM.html</code>): a one-line table of all fifty-two at a glance, then
+each one&rsquo;s section &ndash; the defect, how it was shown, the fix &ndash; with its
+unified diff against v1.0.0 and where upstream&rsquo;s master stands on it; the
+defects found and not fixed; and upstream&rsquo;s open issues that are not
+defects. That document is the reference for the library; this one only says
+what the patches add up to: the tool mounts images made with
+<code>metadata_csum_seed</code>, <code>largedir</code>, <code>inline_data</code> and <code>casefold</code>, and a damaged
+image no longer hangs it &ndash; every assertion that data could reach is an error
+return, and an internal check that still fails is reported at the end of the
+run.</p>
+<p><code>blockdev/ext4_filedev.c</code> is bundled but <strong>not built</strong>: <code>ext4edit.c</code> carries
+its own image block device, which opens the image read-only for a read-only
+command, takes a long or Unicode path, and measures a file over 2 GiB
+correctly.</p>
+<h2 id="licence">Licence</h2>
+<p><strong>GPL-2.0-or-later</strong> (see <code>LICENSE</code> and <code>GPL-2.0.txt</code>) for the wrapper, this
+document, the build script and the files our patches add to lwext4; the
+bundled lwext4 keeps its BSD licence on its own files, and <code>lwext4/unicode/</code>
+holds e2fsprogs&rsquo; Unicode folding under the GNU GPL. Until version 1.2.0 the
+wrapper was dual MIT OR GPL-2.0-or-later; the added files are GPL, which the
+MIT option could not cover.</p>
+<h2 id="see-also">See also</h2>
+<p><code>dd4win</code> (in <code>..\dd4win\</code>), which images a disk or card to the file this tool
+edits and writes it back.</p>
+</body>
+</html>
